@@ -1,17 +1,16 @@
 name: Auto build Aseprite
 
 on:
-  push:
-    branches: main
-
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 permissions:
   contents: write
 
 jobs:
-  auto-build:
-    name: Auto build Aseprite for Windows x64
+  build:
+    name: Build Aseprite for Windows x64
     runs-on: windows-2022
 
     steps:
@@ -23,46 +22,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Download Aseprite
+      - name: Download Aseprite source
+        run: python download.py
+
+      - name: Install dependencies (Ninja + OpenSSL)
         run: |
-          python download.py
+          choco install ninja -y
+          choco install openssl -y
 
-      - name: Setup Ninja
-        uses: ashutoshvarma/setup-ninja@v1.1
-
-      - name: Setup MSVC Developer Command Prompt
+      - name: Setup MSVC
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
           arch: x64
 
-      - name: Build Aseprite
+      - name: Configure and Build
         run: |
           mkdir build
           cd build
-          cmake "${{ github.workspace }}/src/aseprite" -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DLAF_BACKEND=skia -DSKIA_DIR="${{ github.workspace }}/src/skia" -DSKIA_LIBRARY_DIR="${{ github.workspace }}/src/skia/out/Release-x64" -DSKIA_LIBRARY="${{ github.workspace }}/src/skia/out/Release-x64/skia.lib"
+          cmake "${{ github.workspace }}/src/aseprite" -G Ninja `
+            -DCMAKE_BUILD_TYPE=MinSizeRel `
+            -DLAF_BACKEND=skia `
+            -DSKIA_DIR="${{ github.workspace }}/src/skia" `
+            -DSKIA_LIBRARY_DIR="${{ github.workspace }}/src/skia/out/Release-x64" `
+            -DSKIA_LIBRARY="${{ github.workspace }}/src/skia/out/Release-x64/skia.lib"
           cmake --build . --config MinSizeRel --target aseprite
-
-      - name: Copy OpenSSL DLLs (if available)
-        shell: pwsh
-        run: |
-          # шляхи, де часто встановлюють OpenSSL
-          $candidates = @(
-            "C:\Program Files\OpenSSL-Win64\bin\libcrypto-3-x64.dll",
-            "C:\Program Files\OpenSSL-Win64\bin\libssl-3-x64.dll",
-            "C:\OpenSSL-Win64\bin\libcrypto-3-x64.dll",
-            "C:\OpenSSL-Win64\bin\libssl-3-x64.dll"
-          )
-
-          $dest = "${{ github.workspace }}\build\bin"
-
-          foreach ($p in $candidates) {
-            if (Test-Path $p) {
-              Write-Host "Found $p — copying to $dest"
-              Copy-Item -Path $p -Destination $dest -Force
-            }
-          }
-
-          Write-Host "Done copying OpenSSL DLLs (if any were found)."
 
       - name: Get version
         id: get_version
@@ -70,12 +53,12 @@ jobs:
           $version = Get-Content version.txt
           echo "version=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Zip Aseprite
+      - name: Zip build
         run: |
           cd build/bin
           7z a ../../Aseprite-Windows-x64-${{ steps.get_version.outputs.version }}.zip *
 
-      - name: GH Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Aseprite-Windows-x64-${{ steps.get_version.outputs.version }}
