@@ -39,16 +39,22 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake "${{ github.workspace }}/src/aseprite" -G Ninja `
-            -DCMAKE_BUILD_TYPE=MinSizeRel `
-            -DLAF_BACKEND=skia `
-            -DSKIA_DIR="${{ github.workspace }}/src/skia" `
-            -DSKIA_LIBRARY_DIR="${{ github.workspace }}/src/skia/out/Release-x64" `
-            -DSKIA_LIBRARY="${{ github.workspace }}/src/skia/out/Release-x64/skia.lib"
+          cmake "${{ github.workspace }}/src/aseprite" -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DLAF_BACKEND=skia -DSKIA_DIR="${{ github.workspace }}/src/skia" -DSKIA_LIBRARY_DIR="${{ github.workspace }}/src/skia/out/Release-x64" -DSKIA_LIBRARY="${{ github.workspace }}/src/skia/out/Release-x64/skia.lib"
           cmake --build . --config MinSizeRel --target aseprite
+
+      - name: Copy OpenSSL DLLs
+        run: |
+          $opensslPath = "C:/Program Files/OpenSSL-Win64/bin"
+          if (Test-Path "$opensslPath/libcrypto-3-x64.dll") {
+            Copy-Item "$opensslPath/libcrypto-3-x64.dll" "./build/bin" -Force
+            Copy-Item "$opensslPath/libssl-3-x64.dll" "./build/bin" -Force
+          } else {
+            Write-Host "OpenSSL DLLs not found at $opensslPath"
+          }
 
       - name: Get version
         id: get_version
+        shell: pwsh
         run: |
           $version = Get-Content version.txt
           echo "version=$version" >> $env:GITHUB_OUTPUT
