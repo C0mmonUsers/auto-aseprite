@@ -35,23 +35,34 @@ jobs:
         with:
           arch: x64
 
-           - name: Build Aseprite
+      - name: Build Aseprite
         run: |
           mkdir build
           cd build
           cmake "${{ github.workspace }}/src/aseprite" -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DLAF_BACKEND=skia -DSKIA_DIR="${{ github.workspace }}/src/skia" -DSKIA_LIBRARY_DIR="${{ github.workspace }}/src/skia/out/Release-x64" -DSKIA_LIBRARY="${{ github.workspace }}/src/skia/out/Release-x64/skia.lib"
           cmake --build . --config MinSizeRel --target aseprite
-          # 🟢 Додаємо копіювання OpenSSL 3 DLL (нові бібліотеки)
-          if (Test-Path "C:/Program Files/OpenSSL-Win64/bin/libcrypto-3-x64.dll") {
-            copy "C:/Program Files/OpenSSL-Win64/bin/libcrypto-3-x64.dll" ./bin
-            copy "C:/Program Files/OpenSSL-Win64/bin/libssl-3-x64.dll" ./bin
-          } elseif (Test-Path "C:/OpenSSL-Win64/bin/libcrypto-3-x64.dll") {
-            copy "C:/OpenSSL-Win64/bin/libcrypto-3-x64.dll" ./bin
-            copy "C:/OpenSSL-Win64/bin/libssl-3-x64.dll" ./bin
-          } else {
-            echo "⚠️ OpenSSL 3 not found — skipping DLL copy"
+
+      - name: Copy OpenSSL DLLs (if available)
+        shell: pwsh
+        run: |
+          # шляхи, де часто встановлюють OpenSSL
+          $candidates = @(
+            "C:\Program Files\OpenSSL-Win64\bin\libcrypto-3-x64.dll",
+            "C:\Program Files\OpenSSL-Win64\bin\libssl-3-x64.dll",
+            "C:\OpenSSL-Win64\bin\libcrypto-3-x64.dll",
+            "C:\OpenSSL-Win64\bin\libssl-3-x64.dll"
+          )
+
+          $dest = "${{ github.workspace }}\build\bin"
+
+          foreach ($p in $candidates) {
+            if (Test-Path $p) {
+              Write-Host "Found $p — copying to $dest"
+              Copy-Item -Path $p -Destination $dest -Force
+            }
           }
 
+          Write-Host "Done copying OpenSSL DLLs (if any were found)."
 
       - name: Get version
         id: get_version
